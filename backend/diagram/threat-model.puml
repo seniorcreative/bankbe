@@ -1,0 +1,131 @@
+@startuml Bank Be API Threat Model
+
+!define EXTERNAL_ACTOR #FF6B6B
+!define TRUST_BOUNDARY #4ECDC4
+!define DATA_STORE #FFE66D
+!define PROCESS #95E1D3
+!define DATA_FLOW #3498DB
+
+title Bank BE API System - Threat Model
+
+' External Actors
+actor "Client Application" as client EXTERNAL_ACTOR
+actor "Malicious Actor" as attacker EXTERNAL_ACTOR
+
+' Trust Boundaries
+package "Internet" {
+    [Internet Gateway] as internet
+}
+
+package "Application Server" as app_boundary TRUST_BOUNDARY {
+    ' Express.js Application Layer
+    [CORS Middleware] as cors PROCESS
+    [Helmet Security] as helmet PROCESS
+    [Express JSON Parser] as parser PROCESS
+    
+    ' API Routes
+    [Customer Routes] as customer_routes PROCESS
+    [Account Routes] as account_routes PROCESS
+    [Transaction Routes] as transaction_routes PROCESS
+    
+    ' Controllers
+    [Customer Controller] as customer_ctrl PROCESS
+    [Account Controller] as account_ctrl PROCESS
+    [Transaction Controller] as transaction_ctrl PROCESS
+    
+    ' Models/Business Logic
+    [Customer Model] as customer_model PROCESS
+    [Account Model] as account_model PROCESS
+    [Transaction Model] as transaction_model PROCESS
+}
+
+package "Data Layer" as data_boundary TRUST_BOUNDARY {
+    ' In-Memory Storage (Current Implementation)
+    database "In-Memory\nCustomer Store" as customer_store DATA_STORE
+    database "In-Memory\nAccount Store" as account_store DATA_STORE
+    database "In-Memory\nTransaction Store" as transaction_store DATA_STORE
+}
+
+' Data Flows
+client --> internet : HTTPS Requests
+internet --> cors : HTTP/HTTPS
+cors --> helmet : Filtered Requests
+helmet --> parser : Secured Requests
+parser --> customer_routes : Parsed JSON
+parser --> account_routes : Parsed JSON  
+parser --> transaction_routes : Parsed JSON
+
+customer_routes --> customer_ctrl : Route Dispatch
+account_routes --> account_ctrl : Route Dispatch
+transaction_routes --> transaction_ctrl : Route Dispatch
+
+customer_ctrl --> customer_model : Business Logic
+account_ctrl --> account_model : Business Logic
+transaction_ctrl --> transaction_model : Business Logic
+
+customer_model --> customer_store : Data Operations
+account_model --> account_store : Data Operations
+transaction_model --> transaction_store : Data Operations
+
+' Threat Vectors
+attacker ..> internet : "T1: API Enumeration\nT2: Injection Attacks\nT3: DoS Attacks" DATA_FLOW
+attacker ..> cors : "T4: CORS Bypass\nT5: Origin Spoofing" DATA_FLOW
+attacker ..> parser : "T6: JSON Bomb\nT7: Memory Exhaustion" DATA_FLOW
+attacker ..> customer_ctrl : "T8: Business Logic Bypass\nT9: Data Manipulation" DATA_FLOW
+attacker ..> account_ctrl : "T10: Unauthorized Access\nT11: Balance Manipulation" DATA_FLOW
+attacker ..> transaction_ctrl : "T12: Transaction Fraud\nT13: Data Leakage" DATA_FLOW
+
+' Security Controls
+note right of helmet
+  Security Headers:
+  - XSS Protection
+  - Content Security Policy
+  - HSTS
+  - Frame Options
+end note
+
+note right of cors
+  CORS Policy:
+  - Origin: localhost:3000
+  - Credentials: true
+  - Limited to dev environment
+end note
+
+note right of customer_store
+  Vulnerabilities:
+  - No persistence
+  - No encryption
+  - Memory exposure
+  - No backup/recovery
+end note
+
+' Threat Categories
+note top
+  STRIDE Threat Categories:
+  
+  Spoofing (S): T5, T9
+  Tampering (T): T7, T11, T12
+  Repudiation (R): No audit logs
+  Information Disclosure (I): T13
+  Denial of Service (D): T3, T6
+  Elevation of Privilege (E): T8, T10
+end note
+
+' Risk Assessment
+note bottom
+  High Risk Threats:
+  - T11: Balance Manipulation (No auth)
+  - T12: Transaction Fraud (No validation)
+  - T13: Data Leakage (No access control)
+  
+  Medium Risk Threats:
+  - T3: DoS Attacks (No rate limiting)
+  - T6: JSON Bomb (No size limits)
+  - T8: Business Logic Bypass
+  
+  Low Risk Threats:
+  - T1: API Enumeration (Acceptable for dev)
+  - T4: CORS Bypass (Dev environment)
+end note
+
+@enduml
